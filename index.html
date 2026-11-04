@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>ToDo</title>
+</head>
+<body>
+  <h1>ToDo</h1>
+
+  <!-- ボタン：押すと loadTasks が動く -->
+  <button onclick="loadTasks()">一覧を取得</button>
+
+  <!-- 結果を表示する場所 -->
+  <pre id="out"></pre>
+
+  <script>
+    // APIを呼んで、結果を画面に出す関数
+    function loadTasks() {
+      fetch("http://127.0.0.1:8000/tasks")            // GET /tasks を呼ぶ
+        .then(res => res.json())                       // 返事をJSONからJavaScriptの形に直す
+        .then(data => {
+          document.getElementById("out").textContent  // 表示場所を探して
+            = JSON.stringify(data, null, 2);           // 見やすい文字にして入れる
+        })
+        .catch(err => {
+          document.getElementById("out").textContent = "エラー: " + err;
+        });
+    }
+  </script>
+</body>
+</html>
+    
