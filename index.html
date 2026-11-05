@@ -7,26 +7,53 @@
 <body>
   <h1>ToDo</h1>
 
-  <!-- ボタン：押すと loadTasks が動く -->
+  <!-- タイトルを入れる欄と、追加ボタン -->
+  <input id="title" placeholder="タスクのタイトル">
+  <button onclick="addTask()">追加</button>
+
+  <!-- 一覧を更新するボタン -->
   <button onclick="loadTasks()">一覧を取得</button>
 
   <!-- 結果を表示する場所 -->
   <pre id="out"></pre>
 
   <script>
-    // APIを呼んで、結果を画面に出す関数
+    const API = "http://127.0.0.1:8000/tasks";  // APIのURLを1か所にまとめる
+
+    // 一覧を取得して画面に出す（前と同じ）
     function loadTasks() {
-      fetch("http://127.0.0.1:8000/tasks")            // GET /tasks を呼ぶ
-        .then(res => res.json())                       // 返事をJSONからJavaScriptの形に直す
+      fetch(API)
+        .then(res => res.json())
         .then(data => {
-          document.getElementById("out").textContent  // 表示場所を探して
-            = JSON.stringify(data, null, 2);           // 見やすい文字にして入れる
+          document.getElementById("out").textContent =
+            JSON.stringify(data, null, 2);
         })
         .catch(err => {
           document.getElementById("out").textContent = "エラー: " + err;
         });
     }
+
+    // 入力欄のタイトルをPOSTで送って保存する
+    function addTask() {
+      const title = document.getElementById("title").value;  // 入力欄の文字を取る
+      if (title === "") return;                              // 空なら何もしない
+
+      fetch(API, {
+        method: "POST",                                      // 追加のお願い
+        headers: { "Content-Type": "application/json" },     // 「JSONで送ります」の宣言
+        body: JSON.stringify({ title: title })               // 送る中身
+      })
+        .then(res => res.json())                             // 返事（追加したタスク）を読む
+        .then(() => {
+          document.getElementById("title").value = "";       // 入力欄を空にする
+          loadTasks();                                       // 一覧を更新する
+        })
+        .catch(err => {
+          document.getElementById("out").textContent = "エラー: " + err;
+        });
+    }
+
+    loadTasks();  // 画面を開いたときに、最初から一覧を出す
   </script>
 </body>
 </html>
-    
