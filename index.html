@@ -7,53 +7,58 @@
 <body>
   <h1>ToDo</h1>
 
-  <!-- タイトルを入れる欄と、追加ボタン -->
-  <input id="title" placeholder="タスクのタイトル">
+  <input id="title" placeholder="タイトル">
+  <input id="parent" placeholder="親のid（空でもOK）">
   <button onclick="addTask()">追加</button>
+  <button onclick="loadTasks()">一覧取得</button>
 
-  <!-- 一覧を更新するボタン -->
-  <button onclick="loadTasks()">一覧を取得</button>
-
-  <!-- 結果を表示する場所 -->
-  <pre id="out"></pre>
+  <div id="list"></div>
 
   <script>
-    const API = "http://127.0.0.1:8000/tasks";  // APIのURLを1か所にまとめる
+    const API = "http://127.0.0.1:8000";
 
-    // 一覧を取得して画面に出す（前と同じ）
     function loadTasks() {
-      fetch(API)
+      fetch(API + "/tasks")
         .then(res => res.json())
-        .then(data => {
-          document.getElementById("out").textContent =
-            JSON.stringify(data, null, 2);
-        })
-        .catch(err => {
-          document.getElementById("out").textContent = "エラー: " + err;
+        .then(tasks => {
+          const list = document.getElementById("list");
+          list.innerHTML = "";
+          tasks.forEach(t => {
+            const row = document.createElement("div");
+            row.textContent = t.id + ": " + t.title
+              + "（親: " + (t.parent_id === null ? "なし" : t.parent_id) + "）"
+              + "[" + t.status + "] ";
+            if (t.status !== "完了") {
+              const btn = document.createElement("button");
+              btn.textContent = "完了にする";
+              btn.onclick = () => completeTask(t.id);
+              row.appendChild(btn);
+            }
+            list.appendChild(row);
+          });
         });
     }
 
-    // 入力欄のタイトルをPOSTで送って保存する
     function addTask() {
-      const title = document.getElementById("title").value;  // 入力欄の文字を取る
-      if (title === "") return;                              // 空なら何もしない
-
-      fetch(API, {
-        method: "POST",                                      // 追加のお願い
-        headers: { "Content-Type": "application/json" },     // 「JSONで送ります」の宣言
-        body: JSON.stringify({ title: title })               // 送る中身
-      })
-        .then(res => res.json())                             // 返事（追加したタスク）を読む
-        .then(() => {
-          document.getElementById("title").value = "";       // 入力欄を空にする
-          loadTasks();                                       // 一覧を更新する
-        })
-        .catch(err => {
-          document.getElementById("out").textContent = "エラー: " + err;
-        });
+      const title = document.getElementById("title").value;
+      const parentText = document.getElementById("parent").value;
+      const parentId = parentText === "" ? null : Number(parentText);
+      fetch(API + "/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: title, parent_id: parentId }),
+      }).then(() => loadTasks());
     }
 
-    loadTasks();  // 画面を開いたときに、最初から一覧を出す
+    function completeTask(id) {
+      fetch(API + "/tasks/" + id, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "完了" }),
+      }).then(() => loadTasks());
+    }
+
+    loadTasks();
   </script>
 </body>
 </html>

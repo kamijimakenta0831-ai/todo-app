@@ -1,7 +1,7 @@
 import sqlite3
 from typing import Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -17,13 +17,17 @@ app.add_middleware(
 
 def get_conn():
     conn = sqlite3.connect("todo.db")
-    conn.row_factory = sqlite3.Row  # 行を列名で扱えるようにする
+    conn.row_factory = sqlite3.Row
     return conn
 
 
 class TaskCreate(BaseModel):
-    title: str                       # 必須
-    parent_id: Optional[int] = None  # 省略可（親なし）
+    title: str
+    parent_id: Optional[int] = None
+
+
+class TaskUpdate(BaseModel):
+    status: str
 
 
 @app.get("/")
@@ -47,6 +51,23 @@ def create_task(task: TaskCreate):
         (task.title, task.parent_id),
     )
     conn.commit()
-    row = conn.execute("SELECT * FROM tasks WHERE id = ?", (cur.lastrowid,)).fetchone()
+    new_id = cur.lastrowid
     conn.close()
-    return dict(row)
+    return {"id": new_id, "title": task.title, "parent_id": task.parent_id}
+
+
+@app.patch("/tasks/{task_id}")
+def update_status(task_id: int, body: TaskUpdate):
+    if body.status not in ("未完了", "完了"):
+        raise HTTPException(status_code=422, detail="statusは未完了か完了")
+    conn = get_conn()
+    cur = conn.execute(
+        "UPDATE tasks SET status = ? WHERE id = ?",
+        (body.status, task_id),
+    )
+    conn.commit()
+    changed = cur.rowcount
+    conn.close()
+    if changed == 0:
+        raise HTTPException(status_code=404, detail="そのidのタスクはない")
+    return {"id": task_id, "status": body.status}
