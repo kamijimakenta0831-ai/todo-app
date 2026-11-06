@@ -72,29 +72,36 @@ def update_status(task_id: int, body: TaskUpdate):
         conn.close()
         raise HTTPException(status_code=404, detail="そのidのタスクはない")
 
-    # 2. 完了にしたときだけ、親を調べる
-    parent_completed = False
-    if body.status == "完了":
-        row = conn.execute(
-            "SELECT parent_id FROM tasks WHERE id = ?", (task_id,)
-        ).fetchone()
-        parent_id = row["parent_id"]
+    # 2. 押された子の、親のidを調べる
+    row = conn.execute(
+        "SELECT parent_id FROM tasks WHERE id = ?", (task_id,)
+    ).fetchone()
+    parent_id = row["parent_id"]
 
-        # 3. 親がいるなら、同じ親の子で未完了が何件残っているか数える
-        if parent_id is not None:
+    parent_changed = False
+
+    # 3. 親がいるときだけ、親のstatusを見直す
+    if parent_id is not None:
+        if body.status == "完了":
+            # 完了にしたとき：未完了の子が0件なら、親も完了にする
             remaining = conn.execute(
                 "SELECT COUNT(*) FROM tasks WHERE parent_id = ? AND status != '完了'",
                 (parent_id,),
             ).fetchone()[0]
-
-            # 4. 0件なら、親も完了にする
             if remaining == 0:
                 conn.execute(
                     "UPDATE tasks SET status = '完了' WHERE id = ?",
                     (parent_id,),
                 )
-                parent_completed = True
+                parent_changed = True
+        else:
+            # 未完了に戻したとき：親も未完了に戻す
+            conn.execute(
+                "UPDATE tasks SET status = '未完了' WHERE id = ?",
+                (parent_id,),
+            )
+            parent_changed = True
 
     conn.commit()
     conn.close()
-    return {"id": task_id, "status": body.status, "parent_completed": parent_completed}
+    return {"id": task_id, "status": body.status, "parent_changed": parent_changed}

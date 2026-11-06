@@ -17,21 +17,24 @@
   <script>
     const API = "http://127.0.0.1:8000";
 
-    // 1行分の表示を作る。depth（深さ）の分だけ左に空白を入れる
     function makeRow(t, depth) {
       const row = document.createElement("div");
       row.style.marginLeft = (depth * 24) + "px";
       row.textContent = t.id + ": " + t.title + " [" + t.status + "] ";
-      if (t.status !== "完了") {
-        const btn = document.createElement("button");
+      const btn = document.createElement("button");
+      if (t.status === "完了") {
+        row.style.textDecoration = "line-through";
+        row.style.color = "gray";
+        btn.textContent = "未完了に戻す";
+        btn.onclick = () => setStatus(t.id, "未完了");
+      } else {
         btn.textContent = "完了にする";
-        btn.onclick = () => completeTask(t.id);
-        row.appendChild(btn);
+        btn.onclick = () => setStatus(t.id, "完了");
       }
+      row.appendChild(btn);
       return row;
     }
 
-    // parentId を親に持つタスクを並べ、そのすぐ下に、その子たちも並べる
     function drawTasks(tasks, parentId, depth) {
       const list = document.getElementById("list");
       tasks.filter(t => t.parent_id === parentId).forEach(t => {
@@ -60,11 +63,11 @@
       }).then(() => loadTasks());
     }
 
-    function completeTask(id) {
+    function setStatus(id, status) {
       fetch(API + "/tasks/" + id, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "完了" }),
+        body: JSON.stringify({ status: status }),
       }).then(() => loadTasks());
     }
 
