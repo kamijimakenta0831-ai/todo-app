@@ -60,14 +60,41 @@ def create_task(task: TaskCreate):
 def update_status(task_id: int, body: TaskUpdate):
     if body.status not in ("未完了", "完了"):
         raise HTTPException(status_code=422, detail="statusは未完了か完了")
+
     conn = get_conn()
+
+    # 1. 押された子のstatusを変える
     cur = conn.execute(
         "UPDATE tasks SET status = ? WHERE id = ?",
         (body.status, task_id),
     )
-    conn.commit()
-    changed = cur.rowcount
-    conn.close()
-    if changed == 0:
+    if cur.rowcount == 0:
+        conn.close()
         raise HTTPException(status_code=404, detail="そのidのタスクはない")
-    return {"id": task_id, "status": body.status}
+
+    # 2. 完了にしたときだけ、親を調べる
+    parent_completed = False
+    if body.status == "完了":
+        row = conn.execute(
+            "SELECT parent_id FROM tasks WHERE id = ?", (task_id,)
+        ).fetchone()
+        parent_id = row["parent_id"]
+
+        # 3. 親がいるなら、同じ親の子で未完了が何件残っているか数える
+        if parent_id is not None:
+            remaining = conn.execute(
+                "SELECT COUNT(*) FROM tasks WHERE parent_id = ? AND status != '完了'",
+                (parent_id,),
+            ).fetchone()[0]
+
+            # 4. 0件なら、親も完了にする
+            if remaining == 0:
+                conn.execute(
+                    "UPDATE tasks SET status = '完了' WHERE id = ?",
+                    (parent_id,),
+                )
+                parent_completed = True
+
+    conn.commit()
+    conn.close()
+    return {"id": task_id, "status": body.status, "parent_completed": parent_completed}
