@@ -32,6 +32,12 @@
         btn.onclick = () => setStatus(t.id, "完了");
       }
       row.appendChild(btn);
+
+      const del = document.createElement("button");
+      del.textContent = "削除";
+      del.onclick = () => deleteTask(t.id);
+      row.appendChild(del);
+
       return row;
     }
 
@@ -78,6 +84,15 @@
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: status }),
+      }).then(() => loadTasks());
+    }
+
+    function deleteTask(id) {
+      if (!confirm(id + "番を削除します。子も全部消えます。よいですか？")) {
+        return;
+      }
+      fetch(API + "/tasks/" + id, {
+        method: "DELETE",
       }).then(() => loadTasks());
     }
 
