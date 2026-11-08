@@ -53,14 +53,24 @@
     }
 
     function addTask() {
-      const title = document.getElementById("title").value;
-      const parentText = document.getElementById("parent").value;
-      const parentId = parentText === "" ? null : Number(parentText);
+      const titleBox = document.getElementById("title");
+      const parentBox = document.getElementById("parent");
+
+      const title = titleBox.value.trim();
+      if (title === "") {
+        alert("タイトルを入れてください");
+        return;
+      }
+
+      const parentId = parentBox.value === "" ? null : Number(parentBox.value);
       fetch(API + "/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: title, parent_id: parentId }),
-      }).then(() => loadTasks());
+      }).then(() => {
+        titleBox.value = "";
+        loadTasks();
+      });
     }
 
     function setStatus(id, status) {
