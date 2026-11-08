@@ -110,11 +110,14 @@ def update_status(task_id: int, body: TaskUpdate):
 def delete_task(task_id: int):
     conn = get_conn()
 
-    # 1. 消す対象が存在するか確認する
-    row = conn.execute("SELECT id FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    # 1. 消す対象が存在するか確認し、親のidも控えておく
+    row = conn.execute(
+        "SELECT parent_id FROM tasks WHERE id = ?", (task_id,)
+    ).fetchone()
     if row is None:
         conn.close()
         raise HTTPException(status_code=404, detail="そのidのタスクはない")
+    parent_id = row["parent_id"]
 
     # 2. 消す対象のid一覧を作る（自分 → 子 → 孫、の順に集める）
     ids = [task_id]
@@ -130,7 +133,24 @@ def delete_task(task_id: int):
     # 3. 集めたidを、まとめて消す
     conn.executemany("DELETE FROM tasks WHERE id = ?", [(x,) for x in ids])
 
-    # 4. 確定する
+    # 4. 消した子の親がいるなら、残った子を見て、親を見直す
+    parent_changed = False
+    if parent_id is not None:
+        total = conn.execute(
+            "SELECT COUNT(*) FROM tasks WHERE parent_id = ?", (parent_id,)
+        ).fetchone()[0]
+        remaining = conn.execute(
+            "SELECT COUNT(*) FROM tasks WHERE parent_id = ? AND status != '完了'",
+            (parent_id,),
+        ).fetchone()[0]
+        if total > 0 and remaining == 0:
+            conn.execute(
+                "UPDATE tasks SET status = '完了' WHERE id = ?",
+                (parent_id,),
+            )
+            parent_changed = True
+
+    # 5. 最後に1回、まとめて確定する
     conn.commit()
     conn.close()
-    return {"deleted": ids}
+    return {"deleted": ids, "parent_changed": parent_changed}
