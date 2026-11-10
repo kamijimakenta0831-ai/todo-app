@@ -141,4 +141,34 @@ def delete_task(task_id: int):
     ids = [task_id]
     i = 0
     while i < len(ids):
-        children =
+        children = conn.execute(
+            "SELECT id FROM tasks WHERE parent_id = ?", (ids[i],)
+        ).fetchall()
+        for c in children:
+            ids.append(c["id"])
+        i += 1
+
+    # 3. 集めたidを、まとめて消す
+    conn.executemany("DELETE FROM tasks WHERE id = ?", [(x,) for x in ids])
+
+    # 4. 消した子の親がいるなら、残った子を見て、親を見直す
+    parent_changed = False
+    if parent_id is not None:
+        total = conn.execute(
+            "SELECT COUNT(*) FROM tasks WHERE parent_id = ?", (parent_id,)
+        ).fetchone()[0]
+        remaining = conn.execute(
+            "SELECT COUNT(*) FROM tasks WHERE parent_id = ? AND status != '完了'",
+            (parent_id,),
+        ).fetchone()[0]
+        if total > 0 and remaining == 0:
+            conn.execute(
+                "UPDATE tasks SET status = '完了' WHERE id = ?",
+                (parent_id,),
+            )
+            parent_changed = True
+
+    # 5. 最後に1回、まとめて確定する
+    conn.commit()
+    conn.close()
+    return {"deleted": ids, "parent_changed": parent_changed}

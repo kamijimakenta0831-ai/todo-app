@@ -17,10 +17,21 @@
   <script>
     const API = "http://127.0.0.1:8000";
 
-    function makeRow(t, depth) {
+    // 子が何件中何件完了かを、文字にして返す。子がいなければ空の文字
+    function childProgress(tasks, id) {
+      const kids = tasks.filter(k => k.parent_id === id);
+      if (kids.length === 0) {
+        return "";
+      }
+      const done = kids.filter(k => k.status === "完了").length;
+      return " （" + done + "/" + kids.length + "）";
+    }
+
+    function makeRow(t, depth, tasks) {
       const row = document.createElement("div");
       row.style.marginLeft = (depth * 24) + "px";
-      row.textContent = t.id + ": " + t.title + " [" + t.status + "] ";
+      row.textContent = t.id + ": " + t.title + " [" + t.status + "]"
+        + childProgress(tasks, t.id) + " ";
       const btn = document.createElement("button");
       if (t.status === "完了") {
         row.style.textDecoration = "line-through";
@@ -49,7 +60,7 @@
     function drawTasks(tasks, parentId, depth) {
       const list = document.getElementById("list");
       tasks.filter(t => t.parent_id === parentId).forEach(t => {
-        list.appendChild(makeRow(t, depth));
+        list.appendChild(makeRow(t, depth, tasks));
         drawTasks(tasks, t.id, depth + 1);
       });
     }
