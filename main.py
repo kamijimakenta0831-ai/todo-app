@@ -27,7 +27,8 @@ class TaskCreate(BaseModel):
 
 
 class TaskUpdate(BaseModel):
-    status: str
+    title: Optional[str] = None
+    status: Optional[str] = None
 
 
 @app.get("/")
@@ -57,53 +58,70 @@ def create_task(task: TaskCreate):
 
 
 @app.patch("/tasks/{task_id}")
-def update_status(task_id: int, body: TaskUpdate):
-    if body.status not in ("未完了", "完了"):
+def update_task(task_id: int, body: TaskUpdate):
+    # 入口の検証（変な注文は、ここで止める）
+    if body.title is None and body.status is None:
+        raise HTTPException(status_code=422, detail="titleかstatusのどちらかは必要")
+    if body.status is not None and body.status not in ("未完了", "完了"):
         raise HTTPException(status_code=422, detail="statusは未完了か完了")
+    new_title = None
+    if body.title is not None:
+        new_title = body.title.strip()
+        if new_title == "":
+            raise HTTPException(status_code=422, detail="titleは空にできない")
 
     conn = get_conn()
 
-    # 1. 押された子のstatusを変える
-    cur = conn.execute(
-        "UPDATE tasks SET status = ? WHERE id = ?",
-        (body.status, task_id),
-    )
-    if cur.rowcount == 0:
-        conn.close()
-        raise HTTPException(status_code=404, detail="そのidのタスクはない")
-
-    # 2. 押された子の、親のidを調べる
+    # 対象が存在するか確認し、親のidも控える
     row = conn.execute(
         "SELECT parent_id FROM tasks WHERE id = ?", (task_id,)
     ).fetchone()
+    if row is None:
+        conn.close()
+        raise HTTPException(status_code=404, detail="そのidのタスクはない")
     parent_id = row["parent_id"]
 
-    parent_changed = False
+    # titleが送られてきたときだけ、titleを変える
+    if new_title is not None:
+        conn.execute(
+            "UPDATE tasks SET title = ? WHERE id = ?",
+            (new_title, task_id),
+        )
 
-    # 3. 親がいるときだけ、親のstatusを見直す
-    if parent_id is not None:
-        if body.status == "完了":
-            remaining = conn.execute(
-                "SELECT COUNT(*) FROM tasks WHERE parent_id = ? AND status != '完了'",
-                (parent_id,),
-            ).fetchone()[0]
-            if remaining == 0:
+    # statusが送られてきたときだけ、statusを変え、親を見直す
+    parent_changed = False
+    if body.status is not None:
+        conn.execute(
+            "UPDATE tasks SET status = ? WHERE id = ?",
+            (body.status, task_id),
+        )
+        if parent_id is not None:
+            if body.status == "完了":
+                remaining = conn.execute(
+                    "SELECT COUNT(*) FROM tasks WHERE parent_id = ? AND status != '完了'",
+                    (parent_id,),
+                ).fetchone()[0]
+                if remaining == 0:
+                    conn.execute(
+                        "UPDATE tasks SET status = '完了' WHERE id = ?",
+                        (parent_id,),
+                    )
+                    parent_changed = True
+            else:
                 conn.execute(
-                    "UPDATE tasks SET status = '完了' WHERE id = ?",
+                    "UPDATE tasks SET status = '未完了' WHERE id = ?",
                     (parent_id,),
                 )
                 parent_changed = True
-        else:
-            conn.execute(
-                "UPDATE tasks SET status = '未完了' WHERE id = ?",
-                (parent_id,),
-            )
-            parent_changed = True
 
-    # 4. 最後に1回、まとめて確定する
     conn.commit()
     conn.close()
-    return {"id": task_id, "status": body.status, "parent_changed": parent_changed}
+    return {
+        "id": task_id,
+        "title": new_title,
+        "status": body.status,
+        "parent_changed": parent_changed,
+    }
 
 
 @app.delete("/tasks/{task_id}")
@@ -123,34 +141,4 @@ def delete_task(task_id: int):
     ids = [task_id]
     i = 0
     while i < len(ids):
-        children = conn.execute(
-            "SELECT id FROM tasks WHERE parent_id = ?", (ids[i],)
-        ).fetchall()
-        for c in children:
-            ids.append(c["id"])
-        i += 1
-
-    # 3. 集めたidを、まとめて消す
-    conn.executemany("DELETE FROM tasks WHERE id = ?", [(x,) for x in ids])
-
-    # 4. 消した子の親がいるなら、残った子を見て、親を見直す
-    parent_changed = False
-    if parent_id is not None:
-        total = conn.execute(
-            "SELECT COUNT(*) FROM tasks WHERE parent_id = ?", (parent_id,)
-        ).fetchone()[0]
-        remaining = conn.execute(
-            "SELECT COUNT(*) FROM tasks WHERE parent_id = ? AND status != '完了'",
-            (parent_id,),
-        ).fetchone()[0]
-        if total > 0 and remaining == 0:
-            conn.execute(
-                "UPDATE tasks SET status = '完了' WHERE id = ?",
-                (parent_id,),
-            )
-            parent_changed = True
-
-    # 5. 最後に1回、まとめて確定する
-    conn.commit()
-    conn.close()
-    return {"deleted": ids, "parent_changed": parent_changed}
+        children =

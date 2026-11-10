@@ -33,6 +33,11 @@
       }
       row.appendChild(btn);
 
+      const edit = document.createElement("button");
+      edit.textContent = "編集";
+      edit.onclick = () => editTitle(t.id, t.title);
+      row.appendChild(edit);
+
       const del = document.createElement("button");
       del.textContent = "削除";
       del.onclick = () => deleteTask(t.id);
@@ -84,6 +89,22 @@
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: status }),
+      }).then(() => loadTasks());
+    }
+
+    function editTitle(id, currentTitle) {
+      const newTitle = prompt("新しいタイトル", currentTitle);
+      if (newTitle === null) {
+        return;
+      }
+      if (newTitle.trim() === "") {
+        alert("タイトルを入れてください");
+        return;
+      }
+      fetch(API + "/tasks/" + id, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: newTitle }),
       }).then(() => loadTasks());
     }
 
