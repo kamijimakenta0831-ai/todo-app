@@ -11,6 +11,7 @@
   <input id="parent" placeholder="親のid（空でもOK）">
   <button onclick="addTask()">追加</button>
   <button onclick="loadTasks()">一覧取得</button>
+  <label><input type="checkbox" id="onlyTodo" onchange="loadTasks()"> 未完了だけ表示</label>
 
   <div id="list"></div>
 
@@ -59,8 +60,12 @@
 
     function drawTasks(tasks, parentId, depth) {
       const list = document.getElementById("list");
+      const onlyTodo = document.getElementById("onlyTodo").checked;
       tasks.filter(t => t.parent_id === parentId).forEach(t => {
-        list.appendChild(makeRow(t, depth, tasks));
+        const hide = onlyTodo && t.status === "完了";
+        if (!hide) {
+          list.appendChild(makeRow(t, depth, tasks));
+        }
         drawTasks(tasks, t.id, depth + 1);
       });
     }
